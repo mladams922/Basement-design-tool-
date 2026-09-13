@@ -1,0 +1,13 @@
+services:
+  basement-theater:
+    build: .
+    container_name: basement-theater-design-tool
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - APP_PASSWORD=${APP_PASSWORD:?Set APP_PASSWORD in your .env file}
+      - PORT=8080
+      - DATA_DIR=/app/data
+    volumes:
+      - ./data:/app/data
