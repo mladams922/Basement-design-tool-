@@ -44,6 +44,84 @@ the new value. It takes effect immediately — no data loss, since the
 password itself is never written to disk (only compared against the env
 var at login).
 
+## Deploying to a Proxmox VM (Docker already installed)
+
+This covers getting the app running inside a VM on a Proxmox host, assuming
+the VM already has Docker (and the Docker Compose plugin) installed and
+you can SSH into it.
+
+### 1. Get the code onto the VM
+
+From your own machine, copy the project to the VM (replace `user@vm-ip`):
+
+```bash
+scp -r Basement-design-tool- user@vm-ip:~/basement-theater
+```
+
+Or, if the VM has internet access and you'd rather clone directly, SSH into
+the VM and run:
+
+```bash
+git clone <your-repo-url> ~/basement-theater
+```
+
+### 2. Configure and start it
+
+SSH into the VM, then:
+
+```bash
+cd ~/basement-theater
+cp .env.example .env
+nano .env   # set APP_PASSWORD to something only you know
+docker compose up -d --build
+docker compose logs -f   # confirm it started, Ctrl+C to stop following
+```
+
+### 3. Find the VM's address and connect
+
+```bash
+ip -4 addr show   # note the VM's IP on your LAN/bridge
+```
+
+Visit `http://<vm-ip>:8080` from any device on the same network and log in
+with `APP_PASSWORD`.
+
+### 4. Proxmox-specific notes
+
+- **Networking:** make sure the VM's network device is attached to a
+  bridge (e.g. `vmbr0`) that's actually on your home LAN, not an isolated
+  internal-only bridge — otherwise other devices (like your laptop) won't
+  be able to reach it. Check this under the VM's **Hardware → Network
+  Device** in the Proxmox UI.
+- **Stable IP:** give the VM a static IP or a DHCP reservation in your
+  router (or a static config in the VM's `/etc/netplan/*.yaml` or
+  `/etc/network/interfaces`) so `http://<vm-ip>:8080` doesn't change after
+  a reboot.
+- **Firewall:** if you have the Proxmox firewall enabled on this VM or its
+  bridge, add a rule allowing inbound TCP on port 8080 (Datacenter/Node/VM
+  → **Firewall**). If it's disabled, nothing to do.
+- **Autostart:** enable **Start at boot** in the VM's **Options** in
+  Proxmox so it comes back up after a host reboot. Docker Compose's
+  `restart: unless-stopped` (already set in `docker-compose.yml`) then
+  brings the container back up automatically once the VM itself boots and
+  Docker starts.
+- **Backups:** Proxmox VM backups/snapshots (via the Backup job or
+  `vzdump`) will capture the whole VM including `./data/db.json`, which is
+  the simplest way to back this app up. If you'd rather back up just the
+  app data, copy `~/basement-theater/data/db.json` off the VM periodically
+  (e.g. with `scp` or a cron job) instead of snapshotting the whole disk.
+
+### 5. Updating later
+
+```bash
+cd ~/basement-theater
+git pull                      # or re-copy updated files with scp
+docker compose up -d --build  # rebuilds and restarts with the new code
+```
+
+Your data in `./data/db.json` is untouched by this — it lives outside the
+container image.
+
 ## Can I use this from my laptop too?
 
 Yes. This is a normal web app served over HTTP — any device with a
