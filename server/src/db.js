@@ -11,6 +11,7 @@ const DEFAULT_DB = {
   openings: [],
   rooms: [],
   objects: [],
+  cables: [],
   equipment: [],
   nextId: 1,
 };

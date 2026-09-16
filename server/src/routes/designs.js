@@ -78,6 +78,7 @@ router.delete('/:id', (req, res) => {
   const idx = db.designs.findIndex((d) => d.id === id);
   if (idx === -1) return res.status(404).json({ error: 'Not found' });
   db.designs.splice(idx, 1);
+  db.cables = db.cables.filter((c) => c.designId !== id);
   db.walls = db.walls.filter((w) => w.designId !== id);
   db.openings = db.openings.filter((o) => o.designId !== id);
   db.rooms = db.rooms.filter((r) => r.designId !== id);
@@ -100,6 +101,7 @@ router.get('/:id/plan', (req, res) => {
     openings: db.openings.filter((o) => o.designId === id),
     rooms: db.rooms.filter((r) => r.designId === id),
     objects: db.objects.filter((o) => o.designId === id),
+    cables: db.cables.filter((c) => c.designId === id),
   });
 });
 
@@ -168,8 +170,14 @@ router.put('/:id/plan', (req, res) => {
     theater: r.theater && typeof r.theater === 'object' ? r.theater : null,
   }));
 
-  const objects = (Array.isArray(body.objects) ? body.objects : []).map((o) => ({
-    id: assignId(o),
+  // Cables reference objects by id, so new objects' placeholder ids need the
+  // same remapping treatment as walls.
+  const objectIdMap = new Map();
+  const objects = (Array.isArray(body.objects) ? body.objects : []).map((o) => {
+    const id = assignId(o);
+    if (o.id != null) objectIdMap.set(Number(o.id), id);
+    return {
+    id,
     designId,
     category: o.category || 'furniture',
     type: o.type || 'generic',
@@ -183,8 +191,32 @@ router.put('/:id/plan', (req, res) => {
     rotationDeg: num(o.rotationDeg, 0),
     color: o.color || '#6d28d9',
     meta: o.meta && typeof o.meta === 'object' ? o.meta : {},
-  }));
+    };
+  });
 
+  const objectIds = new Set(objects.map((o) => o.id));
+  const cables = (Array.isArray(body.cables) ? body.cables : [])
+    .map((c) => {
+      const from = num(c.fromObjectId, 0);
+      const to = num(c.toObjectId, 0);
+      return {
+        id: assignId(c),
+        designId,
+        type: c.type || 'hdmi',
+        fromObjectId: objectIdMap.get(from) ?? from,
+        toObjectId: objectIdMap.get(to) ?? to,
+        waypoints: Array.isArray(c.waypoints)
+          ? c.waypoints.map((p) => ({ xIn: num(p.xIn, 0), yIn: num(p.yIn, 0) }))
+          : [],
+        slackPct: num(c.slackPct, 15),
+        label: c.label || '',
+        notes: c.notes || '',
+      };
+    })
+    // Drop runs whose endpoints were deleted.
+    .filter((c) => objectIds.has(c.fromObjectId) && objectIds.has(c.toObjectId));
+
+  db.cables = db.cables.filter((c) => c.designId !== designId).concat(cables);
   db.walls = db.walls.filter((w) => w.designId !== designId).concat(walls);
   db.openings = db.openings.filter((o) => o.designId !== designId).concat(openings);
   db.rooms = db.rooms.filter((r) => r.designId !== designId).concat(rooms);
@@ -208,7 +240,7 @@ router.put('/:id/plan', (req, res) => {
   design.updatedAt = Date.now();
 
   saveDB();
-  res.json({ design, walls, openings, rooms, objects });
+  res.json({ design, walls, openings, rooms, objects, cables });
 });
 
 export default router;

@@ -17,6 +17,21 @@ import {
 } from '../geometry.js';
 import { formatFtIn, formatArea, parseLength } from '../units.js';
 import {
+  CABLE_TYPES,
+  CABLE_TYPES_BY_KEY,
+  cableLength,
+  cableWarnings,
+  cableSummary,
+  defaultWaypoints,
+} from '../cables.js';
+import {
+  exportJSON,
+  exportCablesCSV,
+  exportObjectsCSV,
+  exportPlanPNG,
+  exportPlanPDF,
+} from '../exporters.js';
+import {
   CATEGORIES,
   PRESETS_BY_KEY,
   presetsFor,
@@ -53,6 +68,7 @@ const TOOLS = [
   { key: 'opening', label: 'Door/Window', hint: 'D' },
   { key: 'room', label: 'Room', hint: 'R' },
   { key: 'measure', label: 'Measure', hint: 'M' },
+  { key: 'cable', label: 'Cable', hint: 'C' },
 ];
 
 const GRID_CELL_IN = 3;
@@ -76,11 +92,15 @@ export default function FloorPlanEditor() {
   const [wallThickness, setWallThickness] = useState(4.5);
   const [openingType, setOpeningType] = useState('door');
   const [measurement, setMeasurement] = useState(null);
+  const [cableType, setCableType] = useState('hdmi');
+  const [cableFrom, setCableFrom] = useState(null);
+  const [exportError, setExportError] = useState(null);
   const [layers, setLayers] = useState({
     rooms: true,
     labels: true,
     dimensions: true,
     clearances: true,
+    cables: true,
     lighting: true,
     av: true,
   });
@@ -185,13 +205,21 @@ export default function FloorPlanEditor() {
     selection?.kind === 'opening' ? plan?.openings.find((o) => o.id === selection.id) : null;
   const selectedRoom =
     selection?.kind === 'room' ? computedRooms.find((r) => r.id === selection.id) : null;
+  const selectedCable =
+    selection?.kind === 'cable' ? plan?.cables?.find((c) => c.id === selection.id) : null;
 
   const deleteSelection = useCallback(() => {
     if (!selection) return;
     pushHistory();
     mutate((prev) => {
       if (selection.kind === 'object') {
-        return { ...prev, objects: prev.objects.filter((o) => o.id !== selection.id) };
+        return {
+          ...prev,
+          objects: prev.objects.filter((o) => o.id !== selection.id),
+          cables: (prev.cables || []).filter(
+            (c) => c.fromObjectId !== selection.id && c.toObjectId !== selection.id
+          ),
+        };
       }
       if (selection.kind === 'wall') {
         return {
@@ -207,6 +235,9 @@ export default function FloorPlanEditor() {
       }
       if (selection.kind === 'room') {
         return { ...prev, rooms: prev.rooms.filter((r) => r.id !== selection.id) };
+      }
+      if (selection.kind === 'cable') {
+        return { ...prev, cables: (prev.cables || []).filter((c) => c.id !== selection.id) };
       }
       return prev;
     });
@@ -342,6 +373,41 @@ export default function FloorPlanEditor() {
         return;
       }
 
+      if (tool === 'cable') {
+        if (kind !== 'object') {
+          setCableFrom(null);
+          return;
+        }
+        if (cableFrom == null) {
+          setCableFrom(id);
+          setSelection({ kind: 'object', id });
+          return;
+        }
+        if (cableFrom === id) {
+          setCableFrom(null);
+          return;
+        }
+        const from = plan.objects.find((o) => o.id === cableFrom);
+        const to = plan.objects.find((o) => o.id === id);
+        if (from && to) {
+          pushHistory();
+          const cable = {
+            id: newLocalId(),
+            type: cableType,
+            fromObjectId: from.id,
+            toObjectId: to.id,
+            waypoints: defaultWaypoints(from, to),
+            slackPct: 15,
+            label: '',
+            notes: '',
+          };
+          mutate((prev) => ({ ...prev, cables: [...(prev.cables || []), cable] }));
+          setSelection({ kind: 'cable', id: cable.id });
+        }
+        setCableFrom(null);
+        return;
+      }
+
       if (tool === 'measure') {
         const current = draftRef.current;
         if (!current?.start) {
@@ -397,6 +463,12 @@ export default function FloorPlanEditor() {
         setSelection({ kind: 'shellEdge', id });
         pushHistory();
         dragRef.current = { type: 'moveShellEdge', index: id, last: raw };
+      } else if (kind === 'cable') {
+        setSelection({ kind: 'cable', id });
+      } else if (kind === 'cableWaypoint') {
+        setSelection({ kind: 'cable', id });
+        pushHistory();
+        dragRef.current = { type: 'moveWaypoint', id, index: Number(target.dataset.index) };
       } else if (kind === 'opening') {
         setSelection({ kind: 'opening', id });
         pushHistory();
@@ -426,6 +498,8 @@ export default function FloorPlanEditor() {
       ceilingAt,
       mutate,
       pushHistory,
+      cableFrom,
+      cableType,
     ]
   );
 
@@ -602,6 +676,21 @@ export default function FloorPlanEditor() {
         return;
       }
 
+      if (drag.type === 'moveWaypoint') {
+        mutate((prev) => ({
+          ...prev,
+          cables: (prev.cables || []).map((c) =>
+            c.id === drag.id
+              ? {
+                  ...c,
+                  waypoints: c.waypoints.map((wp, i) => (i === drag.index ? pt : wp)),
+                }
+              : c
+          ),
+        }));
+        return;
+      }
+
       if (drag.type === 'moveRoomSeed') {
         mutate((prev) => ({
           ...prev,
@@ -665,7 +754,9 @@ export default function FloorPlanEditor() {
         }));
         return;
       }
-      const map = { v: 'select', s: 'shell', w: 'wall', d: 'opening', r: 'room', m: 'measure' };
+      const map = {
+        v: 'select', s: 'shell', w: 'wall', d: 'opening', r: 'room', m: 'measure', c: 'cable',
+      };
       const next = map[e.key.toLowerCase()];
       if (next) {
         setTool(next);
@@ -771,6 +862,13 @@ export default function FloorPlanEditor() {
           <button className={show3D ? 'active' : ''} onClick={() => setShow3D((s) => !s)}>
             {show3D ? '2D Plan' : '3D View'}
           </button>
+          <ExportMenu
+            plan={plan}
+            computedRooms={computedRooms}
+            svgRef={svgRef}
+            show3D={show3D}
+            onError={setExportError}
+          />
           <button onClick={fitView}>Fit</button>
           <button onClick={undo} title="Ctrl+Z">
             Undo
@@ -838,6 +936,18 @@ export default function FloorPlanEditor() {
             </select>
           </label>
         )}
+        {tool === 'cable' && (
+          <label className="inline-field">
+            Cable
+            <select value={cableType} onChange={(e) => setCableType(e.target.value)}>
+              {CABLE_TYPES.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {measurement && <span className="measurement">{measurement}</span>}
         {tool === 'shell' && draft?.points?.length >= 3 && (
           <button
@@ -893,7 +1003,7 @@ export default function FloorPlanEditor() {
           ))}
 
           <h3>Layers</h3>
-          {['rooms', 'labels', 'dimensions', 'clearances', 'lighting', 'av'].map((key) => (
+          {['rooms', 'labels', 'dimensions', 'clearances', 'cables', 'lighting', 'av'].map((key) => (
             <label key={key} className="inline-check">
               <input
                 type="checkbox"
@@ -932,6 +1042,10 @@ export default function FloorPlanEditor() {
               {tool === 'opening' && 'Click on a wall to drop a door or window.'}
               {tool === 'room' && 'Click inside an enclosed space to make it a room.'}
               {tool === 'measure' && 'Click two points to measure.'}
+              {tool === 'cable' &&
+                (cableFrom == null
+                  ? 'Click the first device (usually the rack), then the device it feeds.'
+                  : 'Now click the device this run goes to. Esc to cancel.')}
               {tool === 'object' && pendingPreset && `Click to place ${pendingPreset.label}. Esc to stop.`}
             </div>
           )}
@@ -945,6 +1059,7 @@ export default function FloorPlanEditor() {
             selectedWall={selectedWall}
             selectedOpening={selectedOpening}
             selectedRoom={selectedRoom}
+            selectedCable={selectedCable}
             computedRooms={computedRooms}
             onSelect={setSelection}
             onUpdateObject={updateObject}
@@ -958,6 +1073,54 @@ export default function FloorPlanEditor() {
           />
         </aside>
       </div>
+    </div>
+  );
+}
+
+function ExportMenu({ plan, computedRooms, svgRef, show3D, onError }) {
+  const [open, setOpen] = useState(false);
+
+  async function run(action) {
+    setOpen(false);
+    try {
+      await action();
+      onError(null);
+    } catch (e) {
+      onError(e.message);
+    }
+  }
+
+  return (
+    <div className="export-menu">
+      <button onClick={() => setOpen((o) => !o)}>Export</button>
+      {open && (
+        <div className="export-dropdown">
+          <button
+            disabled={show3D}
+            onClick={() => run(() => exportPlanPNG(svgRef.current, plan.design.name))}
+          >
+            Plan as PNG
+          </button>
+          <button
+            disabled={show3D}
+            onClick={() => run(() => exportPlanPDF(svgRef.current, plan, computedRooms))}
+          >
+            Printable plan (PDF)
+          </button>
+          <button onClick={() => run(() => exportObjectsCSV(plan, computedRooms))}>
+            Objects as CSV
+          </button>
+          <button
+            onClick={() =>
+              run(() => exportCablesCSV(plan, plan.design.defaultCeilingHeightIn))
+            }
+          >
+            Cable runs as CSV
+          </button>
+          <button onClick={() => run(() => exportJSON(plan))}>Backup as JSON</button>
+          {show3D && <p className="calc-note">Switch to the 2D plan to export an image.</p>}
+        </div>
+      )}
     </div>
   );
 }
@@ -1037,6 +1200,7 @@ function PropertiesPanel({
   selectedWall,
   selectedOpening,
   selectedRoom,
+  selectedCable,
   computedRooms,
   onSelect,
   onUpdateObject,
@@ -1276,6 +1440,89 @@ function PropertiesPanel({
     );
   }
 
+  if (selectedCable) {
+    const length = cableLength(selectedCable, plan.objects, plan.design.defaultCeilingHeightIn);
+    const from = plan.objects.find((o) => o.id === selectedCable.fromObjectId);
+    const to = plan.objects.find((o) => o.id === selectedCable.toObjectId);
+    const warnings = cableWarnings(selectedCable, length?.totalFt);
+    return (
+      <div className="props-form">
+        <h3>Cable Run</h3>
+        <div className="readout">
+          {from?.label} → {to?.label}
+          {length && (
+            <>
+              <br />
+              {length.totalFt.toFixed(1)} ft total ({formatFtIn(length.horizontalIn)} across,{' '}
+              {formatFtIn(length.verticalIn)} up and down, +{selectedCable.slackPct ?? 15}% slack)
+            </>
+          )}
+        </div>
+        <label>
+          Type
+          <select
+            value={selectedCable.type}
+            onChange={(e) =>
+              mutate((prev) => ({
+                ...prev,
+                cables: prev.cables.map((c) =>
+                  c.id === selectedCable.id ? { ...c, type: e.target.value } : c
+                ),
+              }))
+            }
+          >
+            {CABLE_TYPES.map((c) => (
+              <option key={c.key} value={c.key}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Slack %
+          <input
+            type="number"
+            value={selectedCable.slackPct ?? 15}
+            onChange={(e) =>
+              mutate((prev) => ({
+                ...prev,
+                cables: prev.cables.map((c) =>
+                  c.id === selectedCable.id ? { ...c, slackPct: Number(e.target.value) } : c
+                ),
+              }))
+            }
+          />
+        </label>
+        <label>
+          Label
+          <input
+            value={selectedCable.label || ''}
+            onChange={(e) =>
+              mutate((prev) => ({
+                ...prev,
+                cables: prev.cables.map((c) =>
+                  c.id === selectedCable.id ? { ...c, label: e.target.value } : c
+                ),
+              }))
+            }
+          />
+        </label>
+        {warnings.map((w, i) => (
+          <div key={i} className={`verdict ${w.level}`}>
+            {w.text}
+          </div>
+        ))}
+        <p className="calc-note">
+          Length assumes the run goes up to the ceiling, across, and back down. Drag the yellow
+          waypoint to route it around obstacles.
+        </p>
+        <button className="danger" onClick={onDelete}>
+          Delete Run
+        </button>
+      </div>
+    );
+  }
+
   if (selectedRoom) {
     return (
       <div className="props-form">
@@ -1391,6 +1638,30 @@ function PropertiesPanel({
           </li>
         ))}
       </ul>
+
+      {(plan.cables || []).length > 0 && (
+        <>
+          <h3>Cable Runs</h3>
+          <ul className="room-list">
+            {cableSummary(plan.cables, plan.objects, plan.design.defaultCeilingHeightIn).map(
+              (group) => (
+                <li key={group.type}>
+                  <button>
+                    <span
+                      className="swatch"
+                      style={{ background: CABLE_TYPES_BY_KEY[group.type]?.color }}
+                    />
+                    <span className="palette-label">{group.label}</span>
+                    <span className="palette-dims">
+                      {group.runs} run{group.runs === 1 ? '' : 's'} · {Math.ceil(group.totalFt)} ft
+                    </span>
+                  </button>
+                </li>
+              )
+            )}
+          </ul>
+        </>
+      )}
 
       {warnings.length > 0 && (
         <>

@@ -689,6 +689,45 @@ textarea {
   color: #fecaca;
 }
 
+.export-menu {
+  position: relative;
+}
+
+.export-dropdown {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  z-index: 30;
+  min-width: 190px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.export-dropdown button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  font-weight: 500;
+  padding: 0.4rem 0.5rem;
+  white-space: nowrap;
+}
+
+.export-dropdown button:hover:not(:disabled) {
+  background: var(--input-bg);
+}
+
+.export-dropdown .calc-note {
+  padding: 0 0.5rem 0.25rem;
+  margin: 0;
+}
+
 /* Theater designer */
 .props-section {
   border-bottom: 1px solid var(--card-border);
@@ -949,6 +988,54 @@ textarea {
 }
 
 /* Equipment */
+.equip-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.equip-group {
+  margin-bottom: 1.5rem;
+}
+
+.equip-group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-bottom: 1px solid var(--card-border);
+  padding-bottom: 0.25rem;
+  margin-bottom: 0.4rem;
+}
+
+.equip-group-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.equip-group-head span {
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.equip-table td.narrow {
+  width: 70px;
+}
+
+.equip-table td.narrow input {
+  width: 100%;
+}
+
+.equip-table td.line-total {
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
 .budget-summary {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));

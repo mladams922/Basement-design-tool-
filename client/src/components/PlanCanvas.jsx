@@ -1,6 +1,7 @@
 import { wallPolygon, offsetPolygon, objectCorners, polygonEdges, projectOnSegment } from '../geometry.js';
 import { formatFtIn, formatArea } from '../units.js';
 import { ROOM_TYPES_BY_KEY } from '../objectLibrary.js';
+import { cablePath, cableLength, CABLE_TYPES_BY_KEY } from '../cables.js';
 
 function pointsAttr(points) {
   return points.map((p) => `${p.xIn},${p.yIn}`).join(' ');
@@ -227,6 +228,7 @@ export default function PlanCanvas({
   children,
 }) {
   const { design, walls, openings, objects } = plan;
+  const ceilingHeightIn = design.defaultCeilingHeightIn;
   const shell = design.shellPoints;
   const outer = offsetPolygon(shell, design.extWallThicknessIn);
   const shellEdges = polygonEdges(shell);
@@ -362,6 +364,59 @@ export default function PlanCanvas({
           </g>
         );
       })}
+
+      {/* Low-voltage cable runs */}
+      {layers.cables !== false &&
+        (plan.cables || []).map((cable) => {
+          const path = cablePath(cable, objects);
+          if (!path) return null;
+          const spec = CABLE_TYPES_BY_KEY[cable.type] || {};
+          const selected = isSelected('cable', cable.id);
+          const mid = path[Math.floor(path.length / 2)];
+          const length = cableLength(cable, objects, ceilingHeightIn);
+          return (
+            <g key={`cable-${cable.id}`}>
+              <polyline
+                points={pointsAttr(path)}
+                fill="none"
+                stroke={selected ? '#facc15' : spec.color || '#94a3b8'}
+                strokeWidth={selected ? 3 * upp : 2 * upp}
+                strokeDasharray={`${8 * upp} ${4 * upp}`}
+                strokeLinejoin="round"
+                data-kind="cable"
+                data-id={cable.id}
+                style={{ cursor: 'pointer' }}
+              />
+              {layers.labels && length && (
+                <text
+                  x={mid.xIn}
+                  y={mid.yIn - 4 * upp}
+                  fill={spec.color || '#94a3b8'}
+                  fontSize={font * 0.8}
+                  textAnchor="middle"
+                  pointerEvents="none"
+                  style={{ paintOrder: 'stroke', stroke: '#0f172a', strokeWidth: 3 * upp }}
+                >
+                  {spec.label} {length.totalFt.toFixed(0)}'
+                </text>
+              )}
+              {selected &&
+                (cable.waypoints || []).map((wp, i) => (
+                  <circle
+                    key={i}
+                    cx={wp.xIn}
+                    cy={wp.yIn}
+                    r={5 * upp}
+                    fill="#facc15"
+                    data-kind="cableWaypoint"
+                    data-id={cable.id}
+                    data-index={i}
+                    style={{ cursor: 'move' }}
+                  />
+                ))}
+            </g>
+          );
+        })}
 
       {/* Objects */}
       {objects.map((obj) => {

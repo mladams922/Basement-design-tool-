@@ -48,15 +48,25 @@ accounts beyond a single shared login.
   arrangements by seat-to-seat consistency and applies the winner in a click.
   First-reflection points are computed by mirror image and drawn on the plan
   so you know exactly where panels go.
+- **Low-voltage cable runs** — draw a run from the rack to any device and it
+  routes at right angles, computes real length (across, plus up to the ceiling
+  and back down, plus a slack allowance), and warns when a run exceeds what the
+  cable type can do — passive HDMI past 25 ft, Cat6 past 328 ft, speaker wire
+  that wants a heavier gauge.
+- **Exports** — the plan as PNG or a printable PDF with a room schedule,
+  objects and cable runs as CSV for ordering, and a full JSON backup of a
+  design.
 - **Theater math calculators** — screen size vs. seating distance & viewing
   angle (THX/SMPTE), projector throw distance, 5.1/7.1 speaker placement
   angles, riser height estimator.
 - **Acoustics** — room mode calculator (flags problematic room dimension
   ratios) plus a treatment placement checklist (reflection points, bass
   traps, decoupling, basement-specific concerns).
-- **Equipment & budget tracker** — a running list of gear with category,
-  price, and status (wishlist/ordered/purchased/installed), with budget
-  totals.
+- **Equipment & budget tracker** — gear with model numbers, quantities, unit
+  and line pricing, room assignment, status (wishlist/ordered/purchased/
+  installed) and priority. Group the list by category, room, status or
+  priority; see planned vs. spent vs. on-order vs. must-have subtotals; pull
+  everything already placed on a design straight into the list; export to CSV.
 
 ### Editor tips
 
@@ -65,7 +75,7 @@ accounts beyond a single shared login.
   snapping; `[` and `]` rotate the selection by 15°.
 - `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo; `Ctrl+D` duplicates.
 - Tool shortcuts: `V` select, `S` shell, `W` wall, `D` door/window, `R` room,
-  `M` measure.
+  `M` measure, `C` cable.
 
 ## Quick start (Docker, recommended)
 
