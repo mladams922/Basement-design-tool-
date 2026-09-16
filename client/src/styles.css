@@ -562,6 +562,7 @@ textarea {
 
 .palette-group-header {
   display: flex;
+  width: 100%;
   justify-content: space-between;
   background: transparent;
   color: var(--text);
@@ -686,6 +687,128 @@ textarea {
 .warning-list li.error {
   border-left-color: var(--red-bright);
   color: #fecaca;
+}
+
+/* Theater designer */
+.props-section {
+  border-bottom: 1px solid var(--card-border);
+  margin-bottom: 0.5rem;
+}
+
+.props-section-body {
+  padding: 0.5rem 0 0.75rem;
+}
+
+.speaker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.5rem 0 0.75rem;
+}
+
+.speaker-row {
+  border-left: 3px solid var(--muted);
+  background: var(--input-bg);
+  border-radius: 6px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+.speaker-row.good {
+  border-left-color: #4ade80;
+}
+
+.speaker-row.warn {
+  border-left-color: var(--accent);
+}
+
+.speaker-row.error {
+  border-left-color: var(--red-bright);
+}
+
+.speaker-row.missing {
+  opacity: 0.55;
+}
+
+.speaker-row-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  color: var(--text);
+}
+
+.speaker-row-head span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.speaker-detail {
+  color: var(--muted);
+  font-size: 0.72rem;
+  margin-top: 0.1rem;
+}
+
+.speaker-issue {
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.speaker-issue.warn {
+  color: #e8d9a8;
+}
+
+.speaker-issue.error {
+  color: #fecaca;
+}
+
+.verdict {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  padding: 0.4rem 0.5rem;
+  border-radius: 6px;
+  background: var(--input-bg);
+  color: var(--muted);
+  margin-bottom: 0.4rem;
+  border-left: 3px solid transparent;
+}
+
+.verdict.good {
+  border-left-color: #4ade80;
+  color: #bbf7d0;
+}
+
+.verdict.ok {
+  border-left-color: #38bdf8;
+  color: #bae6fd;
+}
+
+.verdict.warn {
+  border-left-color: var(--accent);
+  color: #e8d9a8;
+}
+
+.verdict.error {
+  border-left-color: var(--red-bright);
+  color: #fecaca;
+}
+
+.row-card {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.6rem;
+  margin-bottom: 0.6rem;
+}
+
+.row-card-head {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.row-card-head input {
+  font-weight: 600;
 }
 
 /* Calculators */

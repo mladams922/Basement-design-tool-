@@ -164,6 +164,8 @@ router.put('/:id/plan', (req, res) => {
     ceilingHeightIn: r.ceilingHeightIn == null ? null : num(r.ceilingHeightIn, null),
     color: r.color || '#3b82f6',
     notes: r.notes || '',
+    // Theater rooms carry their screen/projector/seating configuration.
+    theater: r.theater && typeof r.theater === 'object' ? r.theater : null,
   }));
 
   const objects = (Array.isArray(body.objects) ? body.objects : []).map((o) => ({

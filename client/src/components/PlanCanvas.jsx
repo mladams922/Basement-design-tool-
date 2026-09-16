@@ -224,6 +224,7 @@ export default function PlanCanvas({
   onPointerUp,
   onWheel,
   onContextMenu,
+  children,
 }) {
   const { design, walls, openings, objects } = plan;
   const shell = design.shellPoints;
@@ -635,6 +636,8 @@ export default function PlanCanvas({
           </text>
         </g>
       )}
+
+      {children}
 
       {draft && draft.kind === 'object' && draft.cursor && draft.preset && (
         <g

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { api } from '../api.js';
-import PlanCanvas, { openingGeometry } from './PlanCanvas.jsx';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { usePlanDoc, useViewport, newLocalId } from '../planHooks.js';
+import PlanCanvas from './PlanCanvas.jsx';
 import Preview3D from './Preview3D.jsx';
 import {
   buildGrid,
@@ -57,29 +57,19 @@ const TOOLS = [
 
 const GRID_CELL_IN = 3;
 
-function clonePlan(plan) {
-  return {
-    design: { ...plan.design, shellPoints: plan.design.shellPoints.map((p) => ({ ...p })) },
-    walls: plan.walls.map((w) => ({ ...w })),
-    openings: plan.openings.map((o) => ({ ...o })),
-    rooms: plan.rooms.map((r) => ({ ...r })),
-    objects: plan.objects.map((o) => ({ ...o, meta: { ...o.meta } })),
-  };
-}
-
-let localIdCounter = -1;
-const newId = () => localIdCounter--;
-
 export default function FloorPlanEditor() {
   const { designId } = useParams();
-  const [plan, setPlan] = useState(null);
+  const navigate = useNavigate();
+  const { plan, planRef, status, mutate, pushHistory, undo: undoDoc, redo: redoDoc, saveNow } =
+    usePlanDoc(designId);
+  const { svgRef, wrapRef, view, setView, upp, containerSize, toPlan, handleWheel, fitToPoints } =
+    useViewport();
+
   const [tool, setTool] = useState('select');
   const [selection, setSelection] = useState(null);
   const [draft, setDraft] = useState(null);
-  const [view, setView] = useState({ x: -60, y: -60, w: 600, h: 400 });
   const [snapIn, setSnapIn] = useState(3);
   const [ortho, setOrtho] = useState(true);
-  const [status, setStatus] = useState('idle');
   const [show3D, setShow3D] = useState(false);
   const [pendingPreset, setPendingPreset] = useState(null);
   const [openCategory, setOpenCategory] = useState('structure');
@@ -95,120 +85,26 @@ export default function FloorPlanEditor() {
     av: true,
   });
 
-  const svgRef = useRef(null);
-  const wrapRef = useRef(null);
-  const planRef = useRef(null);
   const dragRef = useRef(null);
-  const dirtyRef = useRef(false);
-  const historyRef = useRef({ past: [], future: [] });
   const draftRef = useRef(null);
-  const [containerSize, setContainerSize] = useState({ w: 900, h: 600 });
-
-  planRef.current = plan;
   draftRef.current = draft;
 
-  // --- loading & saving ---------------------------------------------------
-  useEffect(() => {
-    let cancelled = false;
-    api.getPlan(designId).then((data) => {
-      if (cancelled) return;
-      setPlan(data);
-      const box = bbox(data.design.shellPoints);
-      const pad = Math.max(48, box.width * 0.08);
-      setView({
-        x: box.minX - pad,
-        y: box.minY - pad,
-        w: box.width + pad * 2,
-        h: (box.width + pad * 2) * 0.66,
-      });
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [designId]);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    if (!el) return undefined;
-    const ro = new ResizeObserver(() => {
-      setContainerSize({ w: el.clientWidth, h: el.clientHeight });
-    });
-    ro.observe(el);
-    setContainerSize({ w: el.clientWidth, h: el.clientHeight });
-    return () => ro.disconnect();
-  }, [plan !== null]);
-
-  // Keep the viewBox aspect ratio locked to the container so nothing distorts.
-  useEffect(() => {
-    if (!containerSize.w || !containerSize.h) return;
-    setView((v) => {
-      const target = (v.w * containerSize.h) / containerSize.w;
-      if (Math.abs(target - v.h) < 0.5) return v;
-      return { ...v, h: target };
-    });
-  }, [containerSize.w, containerSize.h]);
-
-  const save = useCallback(
-    async (current) => {
-      setStatus('saving');
-      try {
-        const saved = await api.savePlan(designId, current);
-        setPlan((prev) => {
-          // Keep whatever the user has typed since the request went out, but
-          // adopt the server-assigned ids.
-          if (!prev) return saved;
-          return saved;
-        });
-        setStatus('saved');
-      } catch (e) {
-        setStatus('error');
-      }
-    },
-    [designId]
-  );
-
-  useEffect(() => {
-    if (!dirtyRef.current || !plan) return undefined;
-    const t = setTimeout(() => {
-      dirtyRef.current = false;
-      save(plan);
-    }, 1200);
-    return () => clearTimeout(t);
-  }, [plan, save]);
-
-  const mutate = useCallback((updater) => {
-    dirtyRef.current = true;
-    setStatus('editing');
-    setPlan((prev) => (prev ? updater(prev) : prev));
-  }, []);
-
-  const pushHistory = useCallback(() => {
-    if (!planRef.current) return;
-    const h = historyRef.current;
-    h.past.push(clonePlan(planRef.current));
-    if (h.past.length > 60) h.past.shift();
-    h.future = [];
-  }, []);
-
   const undo = useCallback(() => {
-    const h = historyRef.current;
-    if (!h.past.length || !planRef.current) return;
-    h.future.push(clonePlan(planRef.current));
-    const prev = h.past.pop();
-    dirtyRef.current = true;
-    setPlan(prev);
+    undoDoc();
     setSelection(null);
-  }, []);
+  }, [undoDoc]);
 
   const redo = useCallback(() => {
-    const h = historyRef.current;
-    if (!h.future.length || !planRef.current) return;
-    h.past.push(clonePlan(planRef.current));
-    const next = h.future.pop();
-    dirtyRef.current = true;
-    setPlan(next);
+    redoDoc();
     setSelection(null);
-  }, []);
+  }, [redoDoc]);
+
+  const framedRef = useRef(false);
+  useEffect(() => {
+    if (!plan || framedRef.current || !containerSize.w) return;
+    framedRef.current = true;
+    fitToPoints(plan.design.shellPoints);
+  }, [plan, containerSize.w, fitToPoints]);
 
   // --- derived geometry ---------------------------------------------------
   const { computedRooms, grid } = useMemo(() => {
@@ -260,18 +156,6 @@ export default function FloorPlanEditor() {
     },
     [roomAtPoint, plan]
   );
-
-  const upp = containerSize.w ? view.w / containerSize.w : 1;
-
-  // --- coordinate helpers -------------------------------------------------
-  const toPlan = useCallback((event) => {
-    const svg = svgRef.current;
-    if (!svg) return { xIn: 0, yIn: 0 };
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return { xIn: 0, yIn: 0 };
-    const p = new DOMPoint(event.clientX, event.clientY).matrixTransform(ctm.inverse());
-    return { xIn: p.x, yIn: p.y };
-  }, []);
 
   const snapPoint = useCallback(
     (pt, event) => {
@@ -334,7 +218,7 @@ export default function FloorPlanEditor() {
     pushHistory();
     const copy = {
       ...selectedObject,
-      id: newId(),
+      id: newLocalId(),
       cxIn: selectedObject.cxIn + 12,
       cyIn: selectedObject.cyIn + 12,
       meta: { ...selectedObject.meta },
@@ -392,7 +276,7 @@ export default function FloorPlanEditor() {
         if (Math.hypot(end.xIn - current.start.xIn, end.yIn - current.start.yIn) < 2) return;
         pushHistory();
         const wall = {
-          id: newId(),
+          id: newLocalId(),
           x1In: current.start.xIn,
           y1In: current.start.yIn,
           x2In: end.xIn,
@@ -412,7 +296,7 @@ export default function FloorPlanEditor() {
           pushHistory();
           const spec = OPENING_TYPES.find((o) => o.key === openingType) || OPENING_TYPES[0];
           const opening = {
-            id: newId(),
+            id: newLocalId(),
             hostType: host.hostType,
             hostId: host.hostId,
             offsetIn: Math.max(0, Math.min(host.lengthIn - spec.widthIn, host.offsetIn - spec.widthIn / 2)),
@@ -443,7 +327,7 @@ export default function FloorPlanEditor() {
         }
         pushHistory();
         const room = {
-          id: newId(),
+          id: newLocalId(),
           name: `Room ${plan.rooms.length + 1}`,
           type: 'other',
           seedXIn: raw.xIn,
@@ -474,7 +358,7 @@ export default function FloorPlanEditor() {
         pushHistory();
         const obj = {
           ...instantiate(pendingPreset, pt.xIn, pt.yIn, ceilingAt(pt.xIn, pt.yIn)),
-          id: newId(),
+          id: newLocalId(),
           shape: pendingPreset.shape,
         };
         mutate((prev) => ({ ...prev, objects: [...prev.objects, obj] }));
@@ -734,37 +618,9 @@ export default function FloorPlanEditor() {
     dragRef.current = null;
   }, []);
 
-  const handleWheel = useCallback(
-    (event) => {
-      event.preventDefault();
-      const pt = toPlan(event);
-      const factor = event.deltaY > 0 ? 1.12 : 1 / 1.12;
-      setView((v) => {
-        const w = Math.min(4000, Math.max(24, v.w * factor));
-        const scale = w / v.w;
-        return {
-          x: pt.xIn - (pt.xIn - v.x) * scale,
-          y: pt.yIn - (pt.yIn - v.y) * scale,
-          w,
-          h: v.h * scale,
-        };
-      });
-    },
-    [toPlan]
-  );
-
   const fitView = useCallback(() => {
-    if (!plan) return;
-    const box = bbox(plan.design.shellPoints);
-    const pad = Math.max(36, box.width * 0.08);
-    const w = box.width + pad * 2;
-    setView({
-      x: box.minX - pad,
-      y: box.minY - pad,
-      w,
-      h: containerSize.w ? (w * containerSize.h) / containerSize.w : w * 0.66,
-    });
-  }, [plan, containerSize]);
+    if (plan) fitToPoints(plan.design.shellPoints);
+  }, [plan, fitToPoints]);
 
   // --- keyboard -----------------------------------------------------------
   useEffect(() => {
@@ -838,6 +694,16 @@ export default function FloorPlanEditor() {
       }));
     },
     [mutate]
+  );
+
+  const openTheater = useCallback(
+    async (room) => {
+      const index = plan.rooms.findIndex((r) => r.id === room.id);
+      const saved = await saveNow();
+      const target = saved?.rooms?.[index];
+      if (target) navigate(`/designs/${designId}/theater/${target.id}`);
+    },
+    [plan, saveNow, navigate, designId]
   );
 
   const warnings = useMemo(() => {
@@ -1088,6 +954,7 @@ export default function FloorPlanEditor() {
             mutate={mutate}
             pushHistory={pushHistory}
             warnings={warnings}
+            onOpenTheater={openTheater}
           />
         </aside>
       </div>
@@ -1179,6 +1046,7 @@ function PropertiesPanel({
   mutate,
   pushHistory,
   warnings,
+  onOpenTheater,
 }) {
   if (selectedObject) {
     const preset = PRESETS_BY_KEY[selectedObject.type];
@@ -1478,6 +1346,11 @@ function PropertiesPanel({
             }
           />
         </label>
+        {selectedRoom.type === 'theater' && !selectedRoom.missing && (
+          <button className="link-button" onClick={() => onOpenTheater(selectedRoom)}>
+            Open Theater Designer →
+          </button>
+        )}
         <button className="danger" onClick={onDelete}>
           Delete Room
         </button>

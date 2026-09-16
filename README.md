@@ -24,6 +24,22 @@ accounts beyond a single shared login.
   colour-coded by purpose.
 - **Design checks** — flags rooms that aren't enclosed, objects hanging
   outside the shell, gear taller than the ceiling, and similar mistakes.
+- **Theater designer** — mark a room as a theater and it gets its own page:
+  - Auto-place any layout from 2.1 up to 9.2.6 at Dolby reference angles, then
+    drag individual speakers to fit real walls and soffits. Every speaker is
+    continuously re-checked for azimuth, elevation, left/right symmetry and
+    front-stage distance, with the problem stated in plain language.
+  - Screen sizing with live viewing angle against the SMPTE 30° / THX 36–40°
+    targets, and detail expressed as pixels-per-degree against the ~60 PPD
+    limit of human acuity.
+  - Projector analysis: throw range vs. your actual mount distance, image
+    brightness in foot-lamberts and nits for SDR and HDR, required lens shift
+    vs. the projector's range, and whether the light path clears people's
+    heads.
+  - Seating rows with riser heights, per-row viewing angles, and a sightline
+    check that tells you exactly how tall a riser needs to be to see over the
+    row in front.
+  - Boundary interference (SBIR) notes for speakers near walls.
 - **Theater math calculators** — screen size vs. seating distance & viewing
   angle (THX/SMPTE), projector throw distance, 5.1/7.1 speaker placement
   angles, riser height estimator.
