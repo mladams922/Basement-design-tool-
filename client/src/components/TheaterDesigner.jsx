@@ -5,6 +5,13 @@ import { usePlanDoc, useViewport, useComputedRooms, roomBox, newLocalId } from '
 import { snap } from '../geometry.js';
 import { formatFtIn, formatArea, parseLength } from '../units.js';
 import {
+  AcousticsPanel,
+  BassHeatmap,
+  ReflectionOverlay,
+  useBassField,
+  useReflectionPoints,
+} from './TheaterAcoustics.jsx';
+import {
   CHANNELS,
   CHANNELS_BY_KEY,
   FORMATS,
@@ -123,6 +130,8 @@ export default function TheaterDesigner() {
   const [selection, setSelection] = useState(null);
   const [showOverlays, setShowOverlays] = useState(true);
   const [addChannel, setAddChannel] = useState('L');
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showReflections, setShowReflections] = useState(false);
   const dragRef = useRef(null);
   const framedRef = useRef(false);
 
@@ -194,6 +203,35 @@ export default function TheaterDesigner() {
     () => Object.fromEntries(validated.map((v) => [v.channel, v])),
     [validated]
   );
+
+  const subs = useMemo(
+    () => speakers.filter((s) => s.channel.startsWith('SW')),
+    [speakers]
+  );
+
+  const seatPoints = useMemo(() => {
+    if (!plan) return [];
+    return plan.objects
+      .filter((o) => o.meta?.gen === 'seat' && o.meta?.roomId === Number(roomId))
+      .map((o) => ({ xIn: o.cxIn, yIn: o.cyIn }));
+  }, [plan, roomId]);
+
+  const bassField = useBassField({
+    box,
+    ceilingHeightIn: room?.ceilingHeightIn || plan?.design.defaultCeilingHeightIn || 92,
+    subs,
+    earHeightIn: theater?.earHeightIn || 42,
+    enabled: showHeatmap,
+  });
+
+  const reflectionPoints = useReflectionPoints({
+    box,
+    ceilingHeightIn: room?.ceilingHeightIn || plan?.design.defaultCeilingHeightIn || 92,
+    speakers,
+    mlp,
+    earHeightIn: theater?.earHeightIn || 42,
+    enabled: showReflections,
+  });
 
   const rowAnalysis = useMemo(() => {
     if (!theater || !screen) return [];
@@ -359,6 +397,52 @@ export default function TheaterDesigner() {
       ];
     });
   }, [axes, theater, screen, replaceGenerated, roomId]);
+
+  const applySubPlacement = useCallback(
+    (candidate) => {
+      if (!box) return;
+      const targets = candidate.positions.map((p) => ({
+        cxIn: box.minX + p.xFt * 12,
+        cyIn: box.minY + p.yFt * 12,
+      }));
+      pushHistory();
+      mutate((prev) => {
+        let index = 0;
+        const existing = prev.objects.filter(
+          (o) => o.meta?.channel?.startsWith('SW') && o.meta?.roomId === Number(roomId)
+        );
+        const moved = prev.objects.map((o) => {
+          if (!o.meta?.channel?.startsWith('SW') || o.meta?.roomId !== Number(roomId)) return o;
+          const target = targets[index % targets.length];
+          index += 1;
+          return { ...o, cxIn: target.cxIn, cyIn: target.cyIn };
+        });
+        // Add subs if the chosen arrangement needs more than we have.
+        const extra = targets.slice(existing.length).map((t, i) => ({
+          id: newLocalId(),
+          category: 'av',
+          type: 'subwoofer',
+          shape: 'speaker',
+          label: `SW${existing.length + i + 1}`,
+          cxIn: t.cxIn,
+          cyIn: t.cyIn,
+          widthIn: 18,
+          depthIn: 18,
+          heightIn: 20,
+          elevationIn: 0,
+          rotationDeg: 0,
+          color: '#7f1d1d',
+          meta: {
+            channel: `SW${existing.length + i + 1}`,
+            roomId: Number(roomId),
+            gen: 'speaker',
+          },
+        }));
+        return { ...prev, objects: [...moved, ...extra] };
+      });
+    },
+    [box, mutate, pushHistory, roomId]
+  );
 
   // --- dragging speakers ---------------------------------------------------
   const handlePointerDown = useCallback(
@@ -528,7 +612,23 @@ export default function TheaterDesigner() {
               checked={showOverlays}
               onChange={(e) => setShowOverlays(e.target.checked)}
             />
-            Overlays
+            Angles
+          </label>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={showHeatmap}
+              onChange={(e) => setShowHeatmap(e.target.checked)}
+            />
+            Bass map
+          </label>
+          <label className="inline-check">
+            <input
+              type="checkbox"
+              checked={showReflections}
+              onChange={(e) => setShowReflections(e.target.checked)}
+            />
+            Reflections
           </label>
           <span className="save-status">
             {status === 'saving' ? 'Saving…' : status === 'saved' ? 'Saved' : ''}
@@ -644,6 +744,8 @@ export default function TheaterDesigner() {
             onWheel={handleWheel}
             onContextMenu={(e) => e.preventDefault()}
           >
+            {showHeatmap && <BassHeatmap field={bassField} upp={upp} />}
+            {showReflections && <ReflectionOverlay points={reflectionPoints} upp={upp} />}
             {showOverlays && (
               <TheaterOverlay
                 axes={axes}
@@ -955,6 +1057,22 @@ export default function TheaterDesigner() {
                 height and the ceiling — check the mount and the projector body fit.
               </div>
             )}
+          </Section>
+
+          <Section title="Acoustics">
+            <AcousticsPanel
+              box={box}
+              ceilingHeightIn={ceilingHeightIn}
+              earHeightIn={theater.earHeightIn}
+              subs={subs}
+              seats={seatPoints.length ? seatPoints : mlp ? [mlp] : []}
+              onApplySubs={applySubPlacement}
+            />
+            <p className="calc-note">
+              Turn on the bass map to see where nulls land at ear height, then drag a sub and watch
+              them move. Reflections marks where a panel intercepts the first bounce from each
+              front speaker.
+            </p>
           </Section>
 
           <Section title="Room & Boundaries">

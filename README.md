@@ -40,6 +40,14 @@ accounts beyond a single shared login.
     check that tells you exactly how tall a riser needs to be to see over the
     row in front.
   - Boundary interference (SBIR) notes for speakers near walls.
+- **Bass and acoustics modelling** — room modes (axial, tangential, oblique)
+  with the Schroeder frequency and warnings where modes pile up, plus a
+  **bass map** that solves the modal field at ear height and shades the room
+  blue where bass cancels and red where it piles up. Drag a subwoofer and the
+  nulls move. A placement ranker scores standard one- and two-sub
+  arrangements by seat-to-seat consistency and applies the winner in a click.
+  First-reflection points are computed by mirror image and drawn on the plan
+  so you know exactly where panels go.
 - **Theater math calculators** — screen size vs. seating distance & viewing
   angle (THX/SMPTE), projector throw distance, 5.1/7.1 speaker placement
   angles, riser height estimator.
