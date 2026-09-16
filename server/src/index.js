@@ -12,8 +12,7 @@ import {
   getSessionToken,
   isAuthenticated,
 } from './auth.js';
-import plansRouter from './routes/plans.js';
-import itemsRouter from './routes/items.js';
+import designsRouter from './routes/designs.js';
 import equipmentRouter from './routes/equipment.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -45,8 +44,7 @@ app.get('/api/session', (req, res) => {
   res.json({ authenticated: isAuthenticated(req) });
 });
 
-app.use('/api/plans', requireAuth, plansRouter);
-app.use('/api', requireAuth, itemsRouter);
+app.use('/api/designs', requireAuth, designsRouter);
 app.use('/api/equipment', requireAuth, equipmentRouter);
 
 const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');

@@ -24,15 +24,14 @@ export const api = {
   login: (password) => request('/login', { method: 'POST', body: JSON.stringify({ password }) }),
   logout: () => request('/logout', { method: 'POST' }),
 
-  getPlans: () => request('/plans'),
-  getPlan: (id) => request(`/plans/${id}`),
-  createPlan: (data) => request('/plans', { method: 'POST', body: JSON.stringify(data) }),
-  updatePlan: (id, data) => request(`/plans/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  deletePlan: (id) => request(`/plans/${id}`, { method: 'DELETE' }),
+  getDesigns: () => request('/designs'),
+  getDesign: (id) => request(`/designs/${id}`),
+  createDesign: (data) => request('/designs', { method: 'POST', body: JSON.stringify(data) }),
+  updateDesign: (id, data) => request(`/designs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteDesign: (id) => request(`/designs/${id}`, { method: 'DELETE' }),
 
-  getItems: (planId) => request(`/plans/${planId}/items`),
-  saveItems: (planId, items) =>
-    request(`/plans/${planId}/items`, { method: 'PUT', body: JSON.stringify({ items }) }),
+  getPlan: (id) => request(`/designs/${id}/plan`),
+  savePlan: (id, plan) => request(`/designs/${id}/plan`, { method: 'PUT', body: JSON.stringify(plan) }),
 
   getEquipment: () => request('/equipment'),
   createEquipment: (data) => request('/equipment', { method: 'POST', body: JSON.stringify(data) }),

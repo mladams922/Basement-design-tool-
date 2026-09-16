@@ -6,8 +6,11 @@ const DB_FILE = path.join(DATA_DIR, 'db.json');
 
 const DEFAULT_DB = {
   sessions: {},
-  plans: [],
-  items: [],
+  designs: [],
+  walls: [],
+  openings: [],
+  rooms: [],
+  objects: [],
   equipment: [],
   nextId: 1,
 };

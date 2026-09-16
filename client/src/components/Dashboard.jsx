@@ -1,17 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api.js';
-
-function feetIn(inches) {
-  inches = Math.round(inches);
-  const ft = Math.floor(inches / 12);
-  const inch = inches % 12;
-  return `${ft}'${inch}"`;
-}
+import { formatFtIn, parseLength } from '../units.js';
+import { bbox } from '../geometry.js';
 
 export default function Dashboard() {
-  const [plans, setPlans] = useState(null);
-  const [form, setForm] = useState({ name: '', widthFt: 16, lengthFt: 20, heightFt: 8 });
+  const [designs, setDesigns] = useState(null);
+  const [form, setForm] = useState({ name: '', width: "32'", length: "24'", ceiling: "7'8\"" });
   const [creating, setCreating] = useState(false);
   const navigate = useNavigate();
 
@@ -20,102 +15,116 @@ export default function Dashboard() {
   }, []);
 
   async function load() {
-    setPlans(await api.getPlans());
+    setDesigns(await api.getDesigns());
   }
 
-  async function createPlan(e) {
+  async function createDesign(e) {
     e.preventDefault();
     setCreating(true);
     try {
-      const plan = await api.createPlan({
-        name: form.name || 'New Layout',
-        widthIn: Number(form.widthFt) * 12,
-        lengthIn: Number(form.lengthFt) * 12,
-        heightIn: Number(form.heightFt) * 12,
+      const widthIn = parseLength(form.width, 'ft') || 384;
+      const lengthIn = parseLength(form.length, 'ft') || 288;
+      const ceilingIn = parseLength(form.ceiling, 'ft') || 92;
+      const design = await api.createDesign({
+        name: form.name || 'Basement Plan',
+        shellPoints: [
+          { xIn: 0, yIn: 0 },
+          { xIn: widthIn, yIn: 0 },
+          { xIn: widthIn, yIn: lengthIn },
+          { xIn: 0, yIn: lengthIn },
+        ],
+        defaultCeilingHeightIn: ceilingIn,
       });
-      navigate(`/plans/${plan.id}`);
+      navigate(`/designs/${design.id}`);
     } finally {
       setCreating(false);
     }
   }
 
-  async function removePlan(id) {
-    if (!confirm('Delete this layout? This cannot be undone.')) return;
-    await api.deletePlan(id);
+  async function removeDesign(id) {
+    if (!confirm('Delete this design and everything in it? This cannot be undone.')) return;
+    await api.deleteDesign(id);
     load();
   }
 
-  if (!plans) return <div className="loading">Loading plans…</div>;
+  if (!designs) return <div className="loading">Loading designs…</div>;
 
   return (
     <div className="page">
-      <h1>Your Layouts</h1>
+      <h1>Basement Designs</h1>
       <p className="muted">
-        Create a layout for each basement configuration you want to test — screen placement, seating rows, speaker
-        positions.
+        Each design is a complete basement layout — outer shell, interior walls, rooms and
+        everything in them. Make several to compare approaches.
       </p>
 
       <div className="grid">
-        {plans.map((p) => (
-          <div className="card plan-card" key={p.id}>
-            <Link to={`/plans/${p.id}`} className="plan-card-link">
-              <div className="plan-card-title">{p.name}</div>
-              <div className="plan-card-dims">
-                {feetIn(p.widthIn)} × {feetIn(p.lengthIn)} room · {feetIn(p.heightIn)} ceiling
-              </div>
-            </Link>
-            <button className="danger-link" onClick={() => removePlan(p.id)}>
-              Delete
-            </button>
-          </div>
-        ))}
-        {plans.length === 0 && <div className="empty">No layouts yet — create your first one below.</div>}
+        {designs.map((d) => {
+          const box = bbox(d.shellPoints);
+          return (
+            <div className="card plan-card" key={d.id}>
+              <Link to={`/designs/${d.id}`} className="plan-card-link">
+                <div className="plan-card-title">{d.name}</div>
+                <div className="plan-card-dims">
+                  {formatFtIn(box.width)} × {formatFtIn(box.height)} envelope
+                  <br />
+                  {formatFtIn(d.defaultCeilingHeightIn)} ceiling
+                </div>
+              </Link>
+              <button className="danger-link" onClick={() => removeDesign(d.id)}>
+                Delete
+              </button>
+            </div>
+          );
+        })}
+        {designs.length === 0 && (
+          <div className="empty">No designs yet — start one below with your basement's overall size.</div>
+        )}
       </div>
 
-      <form className="card new-plan-form" onSubmit={createPlan}>
-        <h2>New Layout</h2>
+      <form className="card new-plan-form" onSubmit={createDesign}>
+        <h2>New Design</h2>
+        <p className="muted">
+          Start with the overall rectangle of your basement; you can reshape the outline, add
+          bump-outs and draw interior walls once you're in the editor.
+        </p>
         <label>
           Name
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="e.g. Option A - center speakers"
+            placeholder="e.g. Basement v1 — theater on the west end"
           />
         </label>
         <div className="dims-row">
           <label>
-            Width (ft)
+            Overall width
             <input
-              type="number"
-              min="5"
-              step="0.5"
-              value={form.widthFt}
-              onChange={(e) => setForm({ ...form, widthFt: e.target.value })}
+              value={form.width}
+              onChange={(e) => setForm({ ...form, width: e.target.value })}
+              placeholder="32' or 384&quot;"
             />
           </label>
           <label>
-            Length (ft)
+            Overall length
             <input
-              type="number"
-              min="5"
-              step="0.5"
-              value={form.lengthFt}
-              onChange={(e) => setForm({ ...form, lengthFt: e.target.value })}
+              value={form.length}
+              onChange={(e) => setForm({ ...form, length: e.target.value })}
             />
           </label>
           <label>
-            Ceiling (ft)
+            Ceiling height
             <input
-              type="number"
-              min="6"
-              step="0.5"
-              value={form.heightFt}
-              onChange={(e) => setForm({ ...form, heightFt: e.target.value })}
+              value={form.ceiling}
+              onChange={(e) => setForm({ ...form, ceiling: e.target.value })}
             />
           </label>
         </div>
+        <p className="calc-note">
+          Accepts 32', 32'6", 390" or plain numbers. Measure to the inside face of the foundation
+          wall — that's what the shell outline represents.
+        </p>
         <button type="submit" disabled={creating}>
-          {creating ? 'Creating…' : 'Create Layout'}
+          {creating ? 'Creating…' : 'Create Design'}
         </button>
       </form>
     </div>

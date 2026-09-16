@@ -7,9 +7,23 @@ accounts beyond a single shared login.
 
 ## Features
 
-- **Layout designer** — draw your basement room to scale (feet/inches) and
-  drag-and-drop screens, seating, speakers, risers, furniture, doors, etc.
-  Save as many layouts as you want to compare options side by side.
+- **Floor plan designer** — draw the basement's outer shell to exact
+  dimensions (L-shapes and bump-outs included), add interior walls with real
+  framing thickness, drop in doors, cased openings and windows, then click
+  inside any enclosed space to turn it into a named room. Areas are computed
+  automatically and update as you move walls.
+- **Object library** — structure (columns, beams, soffits, duct chases),
+  utilities (furnace, water heater, panel, sump), stairs, seating, tables,
+  bar, gym, storage, AV/network and lighting. Everything is a real-world size,
+  freely rotatable and resizable.
+- **Server rack planning** — rack objects draw their front and rear service
+  clearance, estimate heat output in BTU/hr, and warn when placed somewhere
+  that will be audible from the theater.
+- **3D preview** — orbit the whole basement with walls extruded to their
+  ceiling height, door and window openings cut through, and room floors
+  colour-coded by purpose.
+- **Design checks** — flags rooms that aren't enclosed, objects hanging
+  outside the shell, gear taller than the ceiling, and similar mistakes.
 - **Theater math calculators** — screen size vs. seating distance & viewing
   angle (THX/SMPTE), projector throw distance, 5.1/7.1 speaker placement
   angles, riser height estimator.
@@ -19,6 +33,15 @@ accounts beyond a single shared login.
 - **Equipment & budget tracker** — a running list of gear with category,
   price, and status (wishlist/ordered/purchased/installed), with budget
   totals.
+
+### Editor tips
+
+- Lengths accept `32'`, `32'6"`, `390"` or a plain number.
+- `Shift` temporarily flips ortho (straight-line) drawing; `Alt` disables
+  snapping; `[` and `]` rotate the selection by 15°.
+- `Ctrl+Z` / `Ctrl+Shift+Z` undo and redo; `Ctrl+D` duplicates.
+- Tool shortcuts: `V` select, `S` shell, `W` wall, `D` door/window, `R` room,
+  `M` measure.
 
 ## Quick start (Docker, recommended)
 
